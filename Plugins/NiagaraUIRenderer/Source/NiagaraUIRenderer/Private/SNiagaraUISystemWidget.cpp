@@ -6,6 +6,10 @@
 #include "NiagaraWidgetProperties.h"
 #include "NiagaraUIComponent.h"
 
+#if ENGINE_MAJOR_VERSION == 4
+typedef FVector2D FVector2f;
+#endif 
+
 TMap<UMaterialInterface*, TSharedPtr<FSlateMaterialBrush>> SNiagaraUISystemWidget::MaterialBrushMap;
 
 void SNiagaraUISystemWidget::Construct(const FArguments& Args)

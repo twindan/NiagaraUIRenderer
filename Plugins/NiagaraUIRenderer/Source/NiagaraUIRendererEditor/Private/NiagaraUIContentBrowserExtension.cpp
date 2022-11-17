@@ -65,10 +65,10 @@ struct FCreateNiagaraUIMaterialsExtension : public FContentBrowserSelectedAssetE
 			NewMaterial->MaterialDomain = EMaterialDomain::MD_UI;
 
 
-#if ENGINE_MINOR_VERSION < 1
-			for (UMaterialExpression* Expression : NewMaterial->Expressions)
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 			for (UMaterialExpression* Expression : NewMaterial->GetExpressions())
+#else
+			for (UMaterialExpression* Expression : NewMaterial->Expressions)
 #endif
 			{
 				//if (UMaterialExpressionParticleColor* ParticleColor = Cast<UMaterialExpressionParticleColor>(Expression))
@@ -94,10 +94,10 @@ struct FCreateNiagaraUIMaterialsExtension : public FContentBrowserSelectedAssetE
 					if (EmissiveInput->Expression == nullptr && BaseInput->Expression)
 						EmissiveInput->Expression = BaseInput->Expression;
 
-#if ENGINE_MINOR_VERSION < 1
-					for (UMaterialExpression* TestExp : NewMaterial->Expressions)
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 					for (UMaterialExpression* TestExp : NewMaterial->GetExpressions())
+#else
+					for (UMaterialExpression* TestExp : NewMaterial->Expressions)
 #endif
 					{
 						TArray<FExpressionInput*> Inputs = TestExp->GetInputs();
@@ -193,10 +193,10 @@ public:
 		{
 			const FAssetData& Asset = *AssetIt;
 			
-#if ENGINE_MINOR_VERSION < 1
-			AnyMaterials = AnyMaterials || (Asset.AssetClass == UMaterial::StaticClass()->GetFName());
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 			AnyMaterials = AnyMaterials || (Asset.AssetClassPath == UMaterial::StaticClass()->GetClassPathName());
+#else
+			AnyMaterials = AnyMaterials || (Asset.AssetClass == UMaterial::StaticClass()->GetFName());
 #endif
 			
 		}

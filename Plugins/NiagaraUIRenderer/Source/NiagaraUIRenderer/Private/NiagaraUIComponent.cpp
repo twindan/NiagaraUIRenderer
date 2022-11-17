@@ -7,6 +7,13 @@
 #include "NiagaraSpriteRendererProperties.h"
 #include "SNiagaraUISystemWidget.h"
 
+#if ENGINE_MAJOR_VERSION == 4
+typedef FVector2D FVector2f;
+typedef FVector FVector3f;
+typedef FVector FNiagaraPosition;
+typedef FVector4 FVector4f;
+#endif 
+
 
 DECLARE_STATS_GROUP(TEXT("NiagaraUI"), STATGROUP_NiagaraUI, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("Generate Sprite Data"), STAT_GenerateSpriteData, STATGROUP_NiagaraUI);
@@ -36,16 +43,7 @@ void UNiagaraUIComponent::SetTransformationForUIRendering(FVector2D Location, FV
 	}
 }
 
-#if ENGINE_MINOR_VERSION < 1
-struct FNiagaraRendererEntry
-{
-	FNiagaraRendererEntry(UNiagaraRendererProperties* PropertiesIn, TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstIn, UNiagaraEmitter* EmitterIn)
-		: RendererProperties(PropertiesIn), EmitterInstance(EmitterInstIn), Emitter(EmitterIn) {}
-	UNiagaraRendererProperties* RendererProperties;
-	TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance;
-	UNiagaraEmitter* Emitter;
-};
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 struct FNiagaraRendererEntry
 {
 	FNiagaraRendererEntry(UNiagaraRendererProperties* PropertiesIn, TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstIn, FVersionedNiagaraEmitter EmitterIn)
@@ -53,6 +51,15 @@ struct FNiagaraRendererEntry
 	UNiagaraRendererProperties* RendererProperties;
 	TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance;
 	FVersionedNiagaraEmitter Emitter;
+};
+#else
+struct FNiagaraRendererEntry
+{
+	FNiagaraRendererEntry(UNiagaraRendererProperties* PropertiesIn, TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstIn, UNiagaraEmitter* EmitterIn)
+		: RendererProperties(PropertiesIn), EmitterInstance(EmitterInstIn), Emitter(EmitterIn) {}
+	UNiagaraRendererProperties* RendererProperties;
+	TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance;
+	UNiagaraEmitter* Emitter;
 };
 #endif
 
@@ -63,25 +70,14 @@ void UNiagaraUIComponent::RenderUI(SNiagaraUISystemWidget* NiagaraWidget, float 
 	if (!IsActive())
 		return;
 
-	if (!GetSystemInstanceController())
+	if (!GetSystemInstanceInternal())
 		return;
 	
 	TArray<FNiagaraRendererEntry> Renderers;
 
-	for(TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInst : GetSystemInstanceController()->GetSystemInstance_Unsafe()->GetEmitters())
+	for(const auto &EmitterInst : GetSystemInstanceInternal()->GetEmitters())
 	{
-#if ENGINE_MINOR_VERSION < 1
-		if (UNiagaraEmitter* Emitter = EmitterInst->GetCachedEmitter())
-		{
-			TArray<UNiagaraRendererProperties*> Properties = Emitter->GetRenderers();
-
-			for (UNiagaraRendererProperties* Property : Properties)
-			{
-				FNiagaraRendererEntry NewEntry(Property, EmitterInst, Emitter);
-                Renderers.Add(NewEntry);
-			}
-		}
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1 
 		FVersionedNiagaraEmitter Emitter = EmitterInst->GetCachedEmitter();
 
 		TArray<UNiagaraRendererProperties*> Properties = Emitter.GetEmitterData()->GetRenderers();
@@ -91,6 +87,17 @@ void UNiagaraUIComponent::RenderUI(SNiagaraUISystemWidget* NiagaraWidget, float 
 			FNiagaraRendererEntry NewEntry(Property, EmitterInst, Emitter);
 			Renderers.Add(NewEntry);
 		}
+#else
+		if (UNiagaraEmitter* Emitter = EmitterInst->GetCachedEmitter())
+		{
+			TArray<UNiagaraRendererProperties*> Properties = Emitter->GetRenderers();
+
+			for (UNiagaraRendererProperties* Property : Properties)
+			{
+				FNiagaraRendererEntry NewEntry(Property, EmitterInst, Emitter);
+				Renderers.Add(NewEntry);
+			}
+		}
 #endif
 	}
 
@@ -98,15 +105,15 @@ void UNiagaraUIComponent::RenderUI(SNiagaraUISystemWidget* NiagaraWidget, float 
 			
 	for (FNiagaraRendererEntry Renderer : Renderers)
 	{
-#if ENGINE_MINOR_VERSION < 1
-		if (Renderer.RendererProperties && Renderer.RendererProperties->GetIsEnabled() && Renderer.RendererProperties->IsSimTargetSupported(Renderer.Emitter->SimTarget))
-		{
-			if (Renderer.Emitter->SimTarget == ENiagaraSimTarget::CPUSim)
-			{
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
 		if (Renderer.RendererProperties && Renderer.RendererProperties->GetIsEnabled() && Renderer.RendererProperties->IsSimTargetSupported(Renderer.Emitter.GetEmitterData()->SimTarget))
 		{
 			if (Renderer.Emitter.GetEmitterData()->SimTarget == ENiagaraSimTarget::CPUSim)
+			{
+#else
+		if (Renderer.RendererProperties && Renderer.RendererProperties->GetIsEnabled() && Renderer.RendererProperties->IsSimTargetSupported(Renderer.Emitter->SimTarget))
+		{
+			if (Renderer.Emitter->SimTarget == ENiagaraSimTarget::CPUSim)
 			{
 #endif
 				
@@ -150,10 +157,10 @@ void UNiagaraUIComponent::AddSpriteRendererData(SNiagaraUISystemWidget* NiagaraW
 		return;
 
 	
-#if ENGINE_MINOR_VERSION < 1		
-	bool LocalSpace = EmitterInst->GetCachedEmitter()->bLocalSpace;
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1		
 	bool LocalSpace = EmitterInst->GetCachedEmitterData()->bLocalSpace;
+#else
+	bool LocalSpace = EmitterInst->GetCachedEmitter()->bLocalSpace;
 #endif
 			
 
@@ -391,10 +398,10 @@ void UNiagaraUIComponent::AddRibbonRendererData(SNiagaraUISystemWidget* NiagaraW
 		return RibbonWidthData.GetSafe(Index, 1.f);
 	};
 
-#if ENGINE_MINOR_VERSION < 1		
-	bool LocalSpace = EmitterInst->GetCachedEmitter()->bLocalSpace;
-#else
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1		
 	bool LocalSpace = EmitterInst->GetCachedEmitterData()->bLocalSpace;
+#else
+	bool LocalSpace = EmitterInst->GetCachedEmitter()->bLocalSpace;
 #endif
 			
 	const bool FullIDs = RibbonFullIDData.IsValid();

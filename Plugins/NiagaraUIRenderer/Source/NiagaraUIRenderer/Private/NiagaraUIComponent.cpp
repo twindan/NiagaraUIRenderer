@@ -43,7 +43,18 @@ void UNiagaraUIComponent::SetTransformationForUIRendering(FVector2D Location, FV
 	}
 }
 
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
+#if !(ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1)
+struct FVersionedNiagaraEmitter
+{
+	FVersionedNiagaraEmitter( UNiagaraEmitter *Emitter ) : Emitter(Emitter) { }
+
+	UNiagaraEmitter *GetEmitterData() const { return Emitter; }
+
+private:
+	UNiagaraEmitter *Emitter;
+};
+#endif
+
 struct FNiagaraRendererEntry
 {
 	FNiagaraRendererEntry(UNiagaraRendererProperties* PropertiesIn, TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstIn, FVersionedNiagaraEmitter EmitterIn)
@@ -52,16 +63,6 @@ struct FNiagaraRendererEntry
 	TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance;
 	FVersionedNiagaraEmitter Emitter;
 };
-#else
-struct FNiagaraRendererEntry
-{
-	FNiagaraRendererEntry(UNiagaraRendererProperties* PropertiesIn, TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstIn, UNiagaraEmitter* EmitterIn)
-		: RendererProperties(PropertiesIn), EmitterInstance(EmitterInstIn), Emitter(EmitterIn) {}
-	UNiagaraRendererProperties* RendererProperties;
-	TSharedRef<const FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance;
-	UNiagaraEmitter* Emitter;
-};
-#endif
 
 void UNiagaraUIComponent::RenderUI(SNiagaraUISystemWidget* NiagaraWidget, float ScaleFactor, FVector2f ParentTopLeft, const FNiagaraWidgetProperties* WidgetProperties)
 {
@@ -77,20 +78,11 @@ void UNiagaraUIComponent::RenderUI(SNiagaraUISystemWidget* NiagaraWidget, float 
 
 	for(const auto &EmitterInst : GetSystemInstanceInternal()->GetEmitters())
 	{
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1 
 		FVersionedNiagaraEmitter Emitter = EmitterInst->GetCachedEmitter();
 
-		TArray<UNiagaraRendererProperties*> Properties = Emitter.GetEmitterData()->GetRenderers();
-
-		for (UNiagaraRendererProperties* Property : Properties)
+		if ( const auto EmitterData = Emitter.GetEmitterData() )
 		{
-			FNiagaraRendererEntry NewEntry(Property, EmitterInst, Emitter);
-			Renderers.Add(NewEntry);
-		}
-#else
-		if (UNiagaraEmitter* Emitter = EmitterInst->GetCachedEmitter())
-		{
-			TArray<UNiagaraRendererProperties*> Properties = Emitter->GetRenderers();
+			TArray<UNiagaraRendererProperties*> Properties = EmitterData->GetRenderers();
 
 			for (UNiagaraRendererProperties* Property : Properties)
 			{
@@ -98,25 +90,16 @@ void UNiagaraUIComponent::RenderUI(SNiagaraUISystemWidget* NiagaraWidget, float 
 				Renderers.Add(NewEntry);
 			}
 		}
-#endif
 	}
 
 	Algo::Sort(Renderers, [] (FNiagaraRendererEntry& FirstElement, FNiagaraRendererEntry& SecondElement) {return FirstElement.RendererProperties->SortOrderHint < SecondElement.RendererProperties->SortOrderHint;});
 			
 	for (FNiagaraRendererEntry Renderer : Renderers)
 	{
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1
-		if (Renderer.RendererProperties && Renderer.RendererProperties->GetIsEnabled() && Renderer.RendererProperties->IsSimTargetSupported(Renderer.Emitter.GetEmitterData()->SimTarget))
+		if (Renderer.RendererProperties && Renderer.RendererProperties->GetIsEnabled() && Renderer.Emitter.GetEmitterData() != nullptr && Renderer.RendererProperties->IsSimTargetSupported(Renderer.Emitter.GetEmitterData()->SimTarget))
 		{
 			if (Renderer.Emitter.GetEmitterData()->SimTarget == ENiagaraSimTarget::CPUSim)
 			{
-#else
-		if (Renderer.RendererProperties && Renderer.RendererProperties->GetIsEnabled() && Renderer.RendererProperties->IsSimTargetSupported(Renderer.Emitter->SimTarget))
-		{
-			if (Renderer.Emitter->SimTarget == ENiagaraSimTarget::CPUSim)
-			{
-#endif
-				
 				if (UNiagaraSpriteRendererProperties* SpriteRenderer = Cast<UNiagaraSpriteRendererProperties>(Renderer.RendererProperties))
 				{
 					AddSpriteRendererData(NiagaraWidget, Renderer.EmitterInstance, SpriteRenderer, ScaleFactor, ParentTopLeft, WidgetProperties);
